@@ -17,49 +17,6 @@ Chart.defaults.datasets.bar.categoryPercentage = 0.62;
 Chart.defaults.datasets.bar.barPercentage = 0.72;
 Chart.defaults.datasets.bar.borderSkipped = false;
 
-// Render each chart as a PNG <img> (hidden canvas keeps redraws working)
-const snapTimers = new WeakMap();
-function snapChartToImage(chart) {
-  if (!chart || !chart.canvas) return;
-  const box = chart.canvas.closest('.chart-box');
-  if (!box) return;
-  let img = box.querySelector('img.chart-img');
-  if (!img) {
-    img = document.createElement('img');
-    img.className = 'chart-img';
-    img.alt = chart.canvas.getAttribute('aria-label') || 'Chart';
-    img.loading = 'lazy';
-    box.appendChild(img);
-  }
-  try {
-    img.src = chart.toBase64Image('image/png', 1.25);
-  } catch (_) {
-    /* canvas not ready yet */
-  }
-}
-function scheduleSnap(chart, delay) {
-  if (!chart) return;
-  const prev = snapTimers.get(chart);
-  if (prev) clearTimeout(prev);
-  snapTimers.set(
-    chart,
-    setTimeout(() => snapChartToImage(chart), delay == null ? 80 : delay),
-  );
-}
-Chart.register({
-  id: 'snapToImage',
-  afterRender(chart) {
-    const anim = chart.options.animation;
-    const dur =
-      anim === false || (anim && anim.duration === 0)
-        ? 0
-        : typeof anim === 'object' && anim.duration != null
-          ? anim.duration
-          : 700;
-    scheduleSnap(chart, dur + 40);
-  },
-});
-
 function fmtNum(v) {
   if (v == null || Number.isNaN(v)) return '';
   if (typeof v === 'number')
@@ -91,57 +48,6 @@ function valueLabels(extra = {}) {
 let sectionFilter = 'all';
 const show = (s) => sectionFilter === 'all' || sectionFilter === s;
 
-const careerSection = {
-  'Shrestha Keshav': 'open',
-  'Jaiswal Rupesh': 'open',
-  'Shrestha Bilam Lal': 'open',
-  'Manish Hamal': 'open',
-  'Bhandari Kshitiz': 'open',
-  'Joshi Sindira': 'women',
-  'Khamboo Monalisa': 'women',
-  'Lohani Sujana': 'women',
-};
-
-function linreg(pts) {
-  if (pts.length < 2) return [];
-  const n = pts.length;
-  const sx = pts.reduce((a, p) => a + p.x, 0),
-    sy = pts.reduce((a, p) => a + p.y, 0);
-  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0),
-    sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
-  const den = n * sxx - sx * sx;
-  if (!den) return [];
-  const b = (n * sxy - sx * sy) / den;
-  const a = (sy - b * sx) / n;
-  const xmin = Math.min(...pts.map((p) => p.x)),
-    xmax = Math.max(...pts.map((p) => p.x));
-  return [
-    { x: xmin, y: a + b * xmin },
-    { x: xmax, y: a + b * xmax },
-  ];
-}
-
-function pearson(pts) {
-  const n = pts.length;
-  if (n < 3) return { r: null, p: null };
-  const sx = pts.reduce((a, p) => a + p.x, 0),
-    sy = pts.reduce((a, p) => a + p.y, 0);
-  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0),
-    syy = pts.reduce((a, p) => a + p.y * p.y, 0);
-  const sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
-  const den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
-  if (!den) return { r: null, p: null };
-  const r = (n * sxy - sx * sy) / den;
-  const t = r * Math.sqrt((n - 2) / Math.max(1e-12, 1 - r * r));
-  // two-sided rough p via complementary error function approximation for df=n-2
-  const df = n - 2;
-  const x = df / (df + t * t);
-  // incomplete beta approx is heavy; keep r and note significance qualitatively
-  const absR = Math.abs(r);
-  const sig = absR < 0.2 ? 'not significant' : absR < 0.4 ? 'weak' : 'notable';
-  return { r: Math.round(r * 100) / 100, n, sig };
-}
-
 // ---- scoreboard ----
 function renderScoreboard() {
   const boards = {
@@ -149,7 +55,7 @@ function renderScoreboard() {
       { num: '9', label: 'Open editions competed, 2004\u20132022' },
       { num: '86th', label: 'Best-ever finish, Open, 2022 Chennai' },
       { num: '45', label: 'Unique players across the whole record' },
-      { num: 'r=0.16', label: 'Correlation between age and performance, not significant' },
+      { num: '19', label: 'Players with more than one appearance' },
     ],
     open: [
       { num: '9', label: 'Open editions competed, 2004\u20132022' },
@@ -270,7 +176,7 @@ const insights = {
       "Women's squads have been consistently young since the 2014 debut, averaging 20 to 28 across competed editions.",
   },
   rating: {
-    all: 'Squad rating has stayed roughly flat for both sections across two decades \u2014 no clear rise or fall \u2014 while final rank moved independently of it.',
+    all: 'Squad rating has stayed roughly flat for both sections across two decades, no clear rise or fall, while final rank moved independently of it.',
     open: 'Open squad rating has stayed roughly flat across two decades, hovering around 2050\u20132180, while final rank moved independently of it.',
     women:
       "Women's squad rating has stayed roughly flat since the 2014 debut, around 1530\u20131690, while final rank moved independently of it.",
@@ -306,108 +212,6 @@ document.querySelectorAll('[data-metric]').forEach((btn) => {
     updateTrend();
   });
 });
-
-// ---- age vs gap scatter ----
-const scatterPoints = gapRows.map((r) => ({
-  x: r.age,
-  y: r.gap,
-  section: r.section,
-  name: r.name,
-  year: r.year,
-}));
-const scatterChart = new Chart(document.getElementById('scatterChart'), {
-  type: 'scatter',
-  data: {
-    datasets: [
-      { label: 'Open', data: [], backgroundColor: NAVY, pointRadius: 5, pointHoverRadius: 7 },
-      { label: 'Women', data: [], backgroundColor: CORAL, pointRadius: 5, pointHoverRadius: 7 },
-      {
-        label: 'Trend',
-        data: [],
-        type: 'line',
-        borderColor: MUTED,
-        borderWidth: 1.5,
-        borderDash: [4, 4],
-        pointRadius: 0,
-        fill: false,
-      },
-    ],
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    layout: { padding: { top: 8, right: 8 } },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (c) =>
-            c.dataset.label === 'Trend'
-              ? null
-              : `${c.raw.name} ${c.raw.year}: age ${c.raw.x}, gap ${c.raw.y > 0 ? '+' : ''}${c.raw.y}`,
-        },
-      },
-      datalabels: valueLabels({
-        align: 'top',
-        anchor: 'end',
-        offset: 1,
-        display(ctx) {
-          if (ctx.dataset.label === 'Trend') return false;
-          // keep scatter readable: only label when a single section is filtered
-          return sectionFilter !== 'all';
-        },
-        formatter(value) {
-          if (!value || value.y == null) return null;
-          return (value.y > 0 ? '+' : '') + fmtNum(value.y);
-        },
-      }),
-    },
-    scales: {
-      x: {
-        title: {
-          display: true,
-          text: 'Age at event',
-          color: MUTED,
-          font: { family: "'IBM Plex Sans'", size: 12 },
-        },
-        grid: { color: HAIR },
-        ticks: { color: MUTED },
-      },
-      y: {
-        title: {
-          display: true,
-          text: 'Performance gap',
-          color: MUTED,
-          font: { family: "'IBM Plex Sans'", size: 12 },
-        },
-        grid: { color: HAIR },
-        ticks: { color: MUTED },
-      },
-    },
-  },
-});
-
-function updateScatter() {
-  const openPts = scatterPoints.filter((p) => p.section === 'open');
-  const womenPts = scatterPoints.filter((p) => p.section === 'women');
-  const visible = scatterPoints.filter((p) => show(p.section));
-  scatterChart.data.datasets[0].data = show('open') ? openPts : [];
-  scatterChart.data.datasets[1].data = show('women') ? womenPts : [];
-  scatterChart.data.datasets[2].data = linreg(visible);
-  scatterChart.update();
-  const stats = pearson(visible);
-  if (stats.r === null) {
-    document.getElementById('scatter-insight').textContent =
-      'Not enough points in this filter to estimate a correlation.';
-  } else {
-    const who =
-      sectionFilter === 'all'
-        ? `all ${stats.n} usable player-editions`
-        : `${stats.n} ${sectionFilter} player-editions`;
-    document.getElementById('scatter-insight').textContent =
-      `Pearson correlation across ${who}: r = ${stats.r}. That relationship is ${stats.sig} \u2014 age alone doesn't predict whether a Nepali player beats or misses their own rating at an Olympiad.`;
-  }
-}
 
 // ---- roster continuity ----
 function contChart(elId, data) {
@@ -484,10 +288,10 @@ contChart('contOpenChart', continuity.open);
 contChart('contWomenChart', continuity.women);
 
 const continuityInsights = {
-  all: "Open: 2018 fielded five entirely new players \u2014 nobody from 2016 \u2014 and still finished better (111th) than the 2016 squad that had kept two starters (120th). The 2022 breakthrough (86th) came with three new faces out of five. Women: the most continuous squad, 2018 with three returners, finished worse (117th) than 2016's two-returner side (113th). Their best result, 94th in 2022, came with four newcomers out of five. Turnover is not what is holding Nepal back. 2024* never traveled (visa); 2026* is provisional for Samarkand.",
-  open: "2018's Open squad was five entirely new players, no one who played 2016 \u2014 and it still placed better (111th) than the 2016 squad that had kept two starters (120th). 2022's breakthrough (86th, best ever) came with three new faces out of five. Continuity does not track results here.",
+  all: "Open: 2018 fielded five entirely new players, nobody from 2016, and still finished better (111th) than the 2016 squad that had kept two starters (120th). The 2022 breakthrough (86th) came with three new faces out of five. Women: the most continuous squad, 2018 with three returners, finished worse (117th) than 2016's two-returner side (113th). Their best result, 94th in 2022, came with four newcomers out of five. Turnover is not what is holding Nepal back. 2024* never traveled (visa); 2026* is provisional for Samarkand.",
+  open: "2018's Open squad was five entirely new players, no one who played 2016, and it still placed better (111th) than the 2016 squad that had kept two starters (120th). 2022's breakthrough (86th, best ever) came with three new faces out of five. Continuity does not track results here.",
   women:
-    "2018's Women's squad kept three players from 2016 \u2014 the highest continuity in the section \u2014 and finished worse (117th) than 2016's two-returner side (113th). The breakthrough year, 2022, brought four new faces out of five and finished 94th, the best Women's result on record. More returners have not meant better finishes.",
+    "2018's Women's squad kept three players from 2016, the highest continuity in the section, and finished worse (117th) than 2016's two-returner side (113th). The breakthrough year, 2022, brought four new faces out of five and finished 94th, the best Women's result on record. More returners have not meant better finishes.",
 };
 
 function updateContinuityPanels() {
@@ -496,194 +300,6 @@ function updateContinuityPanels() {
     el.classList.toggle('is-hidden', !show(s));
   });
   document.getElementById('continuity-insight').textContent = continuityInsights[sectionFilter];
-}
-
-// ---- gap chart ----
-let gapExpanded = false;
-const gapChartEl = document.getElementById('gapChart');
-let gapChart;
-function filteredGapRows() {
-  return gapRows.filter((r) => show(r.section));
-}
-function renderGap() {
-  const all = filteredGapRows();
-  const rows = gapExpanded ? all : all.filter((r, i) => i < 8 || i >= all.length - 8);
-  const labels = rows.map((r) => `${r.name} ${r.year}`);
-  const values = rows.map((r) => r.gap);
-  const colors = rows.map((r) => (r.gap >= 0 ? NAVY : CORAL));
-  const boxHeight = Math.max(520, rows.length * 28 + 80);
-  document.getElementById('gapBox').style.height = boxHeight + 'px';
-  if (gapChart) gapChart.destroy();
-  gapChart = new Chart(gapChartEl, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          data: values,
-          backgroundColor: colors,
-          borderRadius: 3,
-          barThickness: rows.length > 30 ? 12 : 16,
-          categoryPercentage: 0.7,
-          barPercentage: 0.78,
-        },
-      ],
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: { padding: { right: 36 } },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (c) =>
-              (c.parsed.x > 0 ? '+' : '') +
-              c.parsed.x +
-              ' rating points vs list rating, age ' +
-              rows[c.dataIndex].age,
-          },
-        },
-        datalabels: valueLabels({
-          anchor: 'end',
-          align: (ctx) => (ctx.dataset.data[ctx.dataIndex] >= 0 ? 'right' : 'left'),
-          offset: 4,
-          formatter(value) {
-            return (value > 0 ? '+' : '') + fmtNum(value);
-          },
-        }),
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Performance rating minus list rating',
-            color: MUTED,
-            font: { family: "'IBM Plex Sans'", size: 12 },
-          },
-          grid: { color: HAIR },
-          ticks: { color: MUTED },
-        },
-        y: { grid: { display: false }, ticks: { color: MUTED, font: { size: 11 } } },
-      },
-    },
-  });
-  const n = all.length;
-  document.getElementById('gapToggle').textContent = gapExpanded
-    ? 'Show fewer'
-    : `Show all ${n} player-editions`;
-}
-document.getElementById('gapToggle').addEventListener('click', function () {
-  gapExpanded = !gapExpanded;
-  renderGap();
-});
-
-// ---- career trajectories ----
-const palette = [
-  '#1D1E3E',
-  '#C17A12',
-  '#8D7663',
-  '#343230',
-  '#0D0802',
-  '#6B5A3E',
-  '#7A6F58',
-  '#A66B08',
-];
-const names = Object.keys(careerHist);
-const careerDatasets = names.map((name, i) => ({
-  label: name,
-  section: careerSection[name] || 'open',
-  data: careerHist[name].map((p) => ({ x: p[0], y: p[1] })),
-  borderColor: palette[i % palette.length],
-  backgroundColor: palette[i % palette.length],
-  borderWidth: 1.75,
-  pointRadius: 0,
-  pointHoverRadius: 4,
-  tension: 0.1,
-}));
-
-const careerChart = new Chart(document.getElementById('careerChart'), {
-  type: 'line',
-  data: { datasets: careerDatasets },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    parsing: false,
-    layout: { padding: { top: 14, right: 28 } },
-    plugins: {
-      legend: { display: false },
-      tooltip: { mode: 'nearest', intersect: false },
-      datalabels: valueLabels({
-        align: 'right',
-        anchor: 'end',
-        offset: 4,
-        display(ctx) {
-          // only label the latest rating on each visible line
-          if (ctx.dataset.hidden) return false;
-          return ctx.dataIndex === ctx.dataset.data.length - 1;
-        },
-        formatter(value) {
-          return value && value.y != null ? fmtNum(value.y) : null;
-        },
-      }),
-    },
-    scales: {
-      x: {
-        type: 'category',
-        labels: [...new Set(careerDatasets.flatMap((d) => d.data.map((p) => p.x)))].sort(),
-        ticks: { color: MUTED, maxTicksLimit: 10 },
-        grid: { display: false },
-      },
-      y: {
-        title: {
-          display: true,
-          text: 'Standard FIDE rating',
-          color: MUTED,
-          font: { family: "'IBM Plex Sans'", size: 12 },
-        },
-        grid: { color: HAIR },
-        ticks: { color: MUTED },
-      },
-    },
-  },
-});
-
-function renderCareerChips() {
-  document.getElementById('chipRow').innerHTML = names
-    .map((name, i) => {
-      const sec = careerSection[name] || 'open';
-      const hidden = !show(sec);
-      const color = palette[i % palette.length];
-      return `<button class="chip on" data-idx="${i}" data-section="${sec}" style="display:${hidden ? 'none' : 'inline-flex'};border-color:${color};background:${color};color:#E7E5DF">${name}</button>`;
-    })
-    .join('');
-  document.querySelectorAll('.chip').forEach((chip) => {
-    chip.addEventListener('click', function () {
-      const idx = parseInt(this.dataset.idx);
-      const meta = careerChart.getDatasetMeta(idx);
-      meta.hidden = !meta.hidden;
-      if (meta.hidden) {
-        this.classList.remove('on');
-        this.style.background = 'transparent';
-        this.style.color = MUTED;
-      } else {
-        this.classList.add('on');
-        this.style.background = palette[idx % palette.length];
-        this.style.color = '#E7E5DF';
-      }
-      careerChart.update();
-    });
-  });
-}
-
-function updateCareer() {
-  names.forEach((name, i) => {
-    const sec = careerSection[name] || 'open';
-    careerChart.getDatasetMeta(i).hidden = !show(sec);
-  });
-  careerChart.update();
-  renderCareerChips();
 }
 
 // ---- age/rating extremes per squad ----
@@ -1031,7 +647,7 @@ function renderExtremes() {
   };
   const ratingText = {
     all: 'Widest rating gap in a competed squad: 2018 Open, 300 points from Rajbhandari Rijendra (1937) to Thing Bibek (2237). Women run almost as wide: 293 points in 2018 (Thapa Khusbu 1411 to Khamboo Monalisha 1704) and 252 in 2016. Thin depth at the top of the national lists shows up as long bars, not as a smooth pack.',
-    open: 'Widest Open rating gap: 2018, 300 points between Rajbhandari Rijendra (1937) and Thing Bibek (2237). 2022 was nearly as stretched at 285 points (Chaulagain 1975 to Thing Bibek 2260). The board is rarely a balanced five \u2014 one strong top board and a much lower floor is the usual shape.',
+    open: 'Widest Open rating gap: 2018, 300 points between Rajbhandari Rijendra (1937) and Thing Bibek (2237). 2022 was nearly as stretched at 285 points (Chaulagain 1975 to Thing Bibek 2260). The board is rarely a balanced five: one strong top board and a much lower floor is the usual shape.',
     women:
       "Widest Women's rating gap among competed editions: 2018, 293 points from Thapa Khusbu (1411) to Khamboo Monalisha (1704). 2016 was 252 points, 2014 was 232. Those spreads track how few rated women Nepal has had to choose from, not a deliberate high\u2013low pairing strategy.",
   };
@@ -1131,8 +747,8 @@ function renderSeed() {
     },
   });
   const seedInsights = {
-    all: "Nepal's Open team beat its seeding in all 7 editions with usable data \u2014 by an average of 13 places, including a 24-place jump in 2008 (seeded 132nd, finished 108th). The Women's section is mixed across 4 editions: \u221215 in 2014, \u22124 in 2016, \u22121 in 2018, then +7 in 2022. 2004 and 2006 Open remain the only competed editions without a clean seed-versus-finish pair here.",
-    open: 'Open beat its seeding in all 7 editions with usable data \u2014 by an average of 13 places, including a 24-place jump in 2008 (seeded 132nd, finished 108th).',
+    all: "Nepal's Open team beat its seeding in all 7 editions with usable data, by an average of 13 places, including a 24-place jump in 2008 (seeded 132nd, finished 108th). The Women's section is mixed across 4 editions: \u221215 in 2014, \u22124 in 2016, \u22121 in 2018, then +7 in 2022. 2004 and 2006 Open remain the only competed editions without a clean seed-versus-finish pair here.",
+    open: 'Open beat its seeding in all 7 editions with usable data, by an average of 13 places, including a 24-place jump in 2008 (seeded 132nd, finished 108th).',
     women:
       "Women's seeding record is mixed across 4 editions: \u221215 in 2014, \u22124 in 2016, \u22121 in 2018, then +7 in 2022.",
   };
@@ -1234,8 +850,8 @@ function updateField() {
   fieldChart.getDatasetMeta(1).hidden = !show('women');
   fieldChart.update();
   const fieldInsights = {
-    all: "The Open field grew from 129 teams (2004) to a provisional 208 (2026 Samarkand) \u2014 a 61% increase. The Women's field grew even faster, from 87 to a provisional 192, more than doubling.",
-    open: 'The Open field grew from 129 teams (2004) to a provisional 208 (2026 Samarkand) \u2014 a 61% increase.',
+    all: "The Open field grew from 129 teams (2004) to a provisional 208 (2026 Samarkand), a 61% increase. The Women's field grew even faster, from 87 to a provisional 192, more than doubling.",
+    open: 'The Open field grew from 129 teams (2004) to a provisional 208 (2026 Samarkand), a 61% increase.',
     women:
       "The Women's field grew from 87 teams (2004) to a provisional 192 (2026), more than doubling.",
   };
@@ -1322,8 +938,8 @@ function updatePercentile() {
   percentileChart.getDatasetMeta(1).hidden = !show('women');
   percentileChart.update();
   const pctInsights = {
-    all: "On this measure the story is cleaner than raw rank suggested: Open climbs fairly steadily from the 19th percentile (2004) to the 55th (2022) \u2014 finishing in the top half of the field for the first time. Women's section is more volatile: 16th percentile in the 2014 debut, up to 43rd by 2022.",
-    open: 'Open climbs fairly steadily from the 19th percentile (2004) to the 55th (2022) \u2014 finishing in the top half of the field for the first time.',
+    all: "On this measure the story is cleaner than raw rank suggested: Open climbs fairly steadily from the 19th percentile (2004) to the 55th (2022), finishing in the top half of the field for the first time. Women's section is more volatile: 16th percentile in the 2014 debut, up to 43rd by 2022.",
+    open: 'Open climbs fairly steadily from the 19th percentile (2004) to the 55th (2022), finishing in the top half of the field for the first time.',
     women:
       "Women's percentile is more volatile: 16th in the 2014 debut, then 21st (2016), 23rd (2018), and 43rd by 2022.",
   };
@@ -1482,10 +1098,7 @@ function updateLegends() {
 function applySectionFilter() {
   renderScoreboard();
   updateTrend();
-  updateScatter();
   updateContinuityPanels();
-  renderGap();
-  updateCareer();
   renderExtremes();
   renderSeed();
   updateField();

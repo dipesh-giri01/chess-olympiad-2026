@@ -71,22 +71,6 @@
       </section>
 
       <section class="reveal">
-        <h2>Does a younger or older squad actually score better?</h2>
-        <p class="section-intro">
-          Every player-edition with usable performance data, age against how far they beat or missed
-          their own rating. If age mattered, you'd see a slope. There isn't one.
-        </p>
-        <div class="chart-box" style="height: 360px">
-          <canvas
-            id="scatterChart"
-            role="img"
-            aria-label="Scatter chart of player age against performance gap, showing no meaningful relationship"
-          ></canvas>
-        </div>
-        <p class="insight gold" id="scatter-insight"></p>
-      </section>
-
-      <section class="reveal">
         <h2>How big was the field</h2>
         <p class="section-intro">
           Total teams and nations per edition, from Wikipedia (2004–2024) and FIDE for Samarkand
@@ -134,7 +118,7 @@
           Where Nepal was seeded going in (by rating) versus where it actually finished. Real seed
           numbers pulled from Chess-Results' SNo column. The dataset's own "list_rank" field turned
           out to just duplicate final rank, so this required going back to the source. Includes 2016
-          and 2018 Women (Baku, Batumi). 2004 and 2006 Open still omitted — early standings files
+          and 2018 Women (Baku, Batumi). 2004 and 2006 Open still omitted: early standings files
           don't cleanly separate seed from finish.
         </p>
         <div class="legend-row">
@@ -211,43 +195,12 @@
       </section>
 
       <section class="reveal">
-        <h2>Performance against your own rating</h2>
-        <p class="section-intro">
-          Performance rating minus list rating, for every player-edition with usable data. Positive
-          means a player scored above what their rating predicted.
-        </p>
-        <div class="legend-row">
-          <span class="legend-item"
-            ><span class="swatch" style="background: var(--navy)"></span>Overperformed</span
-          >
-          <span class="legend-item"
-            ><span class="swatch" style="background: var(--coral)"></span>Underperformed</span
-          >
-        </div>
-        <div class="chart-box" id="gapBox" style="height: 540px">
-          <canvas
-            id="gapChart"
-            role="img"
-            aria-label="Diverging horizontal bar chart of Nepal players performance rating versus list rating"
-          ></canvas>
-        </div>
-        <button class="showmore" id="gapToggle">Show all 60 player-editions</button>
-        <p class="insight" id="gap-insight">
-          Bilam Lal Shrestha is the one name that shows up twice on the overperform side, six years
-          apart: +259 in 2010 (age 47) and +239 in 2016 (age 53). No one else overperforms more than
-          once in this record.
-        </p>
-      </section>
-
-      <section class="reveal">
         <h2>Who plays for Nepal more than once</h2>
         <p class="section-intro">
           Counting every squad except 2024 (registered but never traveled, visa issues): 19 of the
           45 players in this record have more than one appearance. The 2026 provisional squad counts
           here, since those players are confirmed selections for an Olympiad that will actually
-          happen. A horizontal bar chart is the right form here, not just a convenient one: this is
-          a magnitude comparison across many named categories, the exact task position and length
-          handle best.
+          happen.
         </p>
         <div class="legend-row" data-pair-legend>
           <span class="legend-item" data-section="open"
@@ -265,22 +218,6 @@
           ></canvas>
         </div>
         <p class="insight" id="caps-insight"></p>
-      </section>
-
-      <section class="reveal">
-        <h2>Career rating trajectories</h2>
-        <p class="section-intro">
-          Monthly FIDE standard rating for Nepal's eight most-capped Olympiad players, 2003 to 2026.
-          Click a name to isolate it.
-        </p>
-        <div class="chart-box" style="height: 380px">
-          <canvas
-            id="careerChart"
-            role="img"
-            aria-label="Multi line chart of career FIDE rating history for Nepal's most capped Olympiad players"
-          ></canvas>
-        </div>
-        <div class="chip-row" id="chipRow"></div>
       </section>
 
       <section class="reveal">
